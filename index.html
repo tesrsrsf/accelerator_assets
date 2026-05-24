@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Accelerator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* 主界面 */
+        #app-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 60px 20px;
+            background: radial-gradient(circle at center, #141414 0%, #0a0a0a 100%);
+            transition: opacity 0.1s ease;
+        }
+        .hint-text {
+            color: #666;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        /* 核心圆形大按钮 */
+        .btn-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #accelerate-btn {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: #111;
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5), inset 0 0 15px rgba(255,255,255,0.05);
+            color: #aaa;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        /* 按住时的呼吸灯脉冲特效（对应剧本：The phone screen pulses faintly） */
+        #app-screen.accelerating #accelerate-btn {
+            background: #1a1a1a;
+            border-color: #00ffcc;
+            color: #00ffcc;
+            box-shadow: 0 0 40px rgba(0, 255, 204, 0.3), inset 0 0 20px rgba(0, 255, 204, 0.1);
+            animation: pulse 1.5s infinite alternate;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 30px rgba(0, 255, 204, 0.2); }
+            100% { transform: scale(1.03); box-shadow: 0 0 50px rgba(0, 255, 204, 0.5); }
+        }
+        /* 没电黑屏界面 */
+        #dead-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        /* 红色的电池图标（对应剧本：THE NO BATTERY ICON APPEARS） */
+        .battery-icon {
+            width: 70px;
+            height: 35px;
+            border: 3px solid #ff3b30;
+            border-radius: 6px;
+            position: relative;
+            padding: 3px;
+        }
+        .battery-icon::after {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 7px;
+            height: 14px;
+            background-color: #ff3b30;
+            border-radius: 0 3px 3px 0;
+        }
+        .battery-level {
+            width: 15%;
+            height: 100%;
+            background-color: #ff3b30;
+            border-radius: 2px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-screen">
+        <div class="hint-text">System Ready</div>
+        <div class="btn-container">
+            <div id="accelerate-btn">ACCELERATE</div>
+        </div>
+        <div class="hint-text" style="font-size: 11px; color: #444;">v1.0.4-build.88</div>
+    </div>
+
+    <div id="dead-screen" id="dead-screen">
+        <div class="battery-icon">
+            <div class="battery-level"></div>
+        </div>
+    </div>
+
+    <script>
+        const btn = document.getElementById('accelerate-btn');
+        const appScreen = document.getElementById('app-screen');
+        const deadScreen = document.getElementById('dead-screen');
+        
+        let isDead = false;
+        let pressTimer = null;
+        
+        // 【剧组专用控场密码】如果拍戏穿帮了或者想重置，双击屏幕上方空白处即可恢复初始状态
+        appScreen.addEventListener('dblclick', (e) => {
+            if(e.clientY < 100) {
+                resetApp();
+            }
+        });
+        deadScreen.addEventListener('click', () => {
+            resetApp();
+        });
+
+        function resetApp() {
+            isDead = false;
+            deadScreen.style.display = 'none';
+            appScreen.style.opacity = '1';
+            appScreen.classList.remove('accelerating');
+            clearTimeout(pressTimer);
+        }
+
+        // 核心逻辑：按住开始加速 [cite: 95]
+        function startAccelerate(e) {
+            e.preventDefault(); // 阻止安卓默认的缩放和长按菜单
+            if (isDead) return;
+            
+            appScreen.classList.add('accelerating');
+            
+            // 【关键剧情设定】按住达到 6 秒后，手机自动“电量耗尽”黑屏！ [cite: 16, 17]
+            // 拍高潮戏时，演员只需要死死按住，高喊台词，6秒一到手机会自动触发反转剧情。 
+            pressTimer = setTimeout(() => {
+                triggerBatteryDead();
+            }, 6000); 
+        }
+
+        // 松开或者手滑移开时停止加速
+        function stopAccelerate() {
+            if (isDead) return;
+            appScreen.classList.remove('accelerating');
+            clearTimeout(pressTimer);
+        }
+
+        // 触发没电剧情 [cite: 16, 17]
+        function triggerBatteryDead() {
+            isDead = true;
+            appScreen.classList.remove('accelerating');
+            
+            // 1. 先瞬间黑屏 
+            appScreen.style.opacity = '0';
+            
+            // 2. 延迟 0.5 秒后，闪烁红色的无电电池图标（符合剧本第8页：THE NO BATTERY ICON APPEARS） 
+            setTimeout(() => {
+                deadScreen.style.display = 'flex';
+                
+                // 3. 电池图标闪烁 3 秒后完全陷入彻底的黑暗，任凭怎么按都没反应 
+                setTimeout(() => {
+                    deadScreen.style.innerHTML = ''; // 清空图标，彻底全黑
+                    deadScreen.style.backgroundColor = '#000';
+                }, 3000);
+            }, 500);
+        }
+
+        // 适配安卓手机的触摸事件
+        btn.addEventListener('touchstart', startAccelerate, { passive: false });
+        btn.addEventListener('touchend', stopAccelerate);
+        btn.addEventListener('touchcancel', stopAccelerate);
+        
+        // 兼容PC端测试
+        btn.addEventListener('mousedown', startAccelerate);
+        btn.addEventListener('mouseup', stopAccelerate);
+        btn.addEventListener('mouseleave', stopAccelerate);
+    </script>
+</body>
+</html>
