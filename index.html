@@ -15,12 +15,9 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #0a0a0a;
+            background-color: #000;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
         /* 主界面 */
         #app-screen {
@@ -33,15 +30,42 @@
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            padding: 60px 20px;
+            padding: 0 20px 60px 20px; /* 调整内边距，给顶部留出空间 */
             background: radial-gradient(circle at center, #141414 0%, #0a0a0a 100%);
             transition: opacity 0.1s ease;
+            z-index: 10;
         }
+        
+        /* 🎬 网页伪装的【道具状态栏】 */
+        .fake-status-bar {
+            width: 100%;
+            height: 36px; /* 契合大部分安卓挖孔屏或刘海屏的高度 */
+            display: flex;
+            justify-content: space-between; /* 左右两端对齐 */
+            align-items: center;
+            padding: 0 16px;
+            background-color: transparent;
+            z-index: 100;
+        }
+        /* 左侧假时间：由JavaScript控制，按住时会跟着疯狂加速！ */
+        .fake-time {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        /* 右侧留空（干掉了所有电量、信号和Wi-Fi图标，只留下一片干净的黑暗，完美避开穿帮） */
+        .fake-icons {
+            width: 40px;
+            height: 10px;
+        }
+
         .hint-text {
             color: #666;
             font-size: 14px;
             letter-spacing: 2px;
             text-transform: uppercase;
+            margin-top: 40px;
         }
         /* 核心圆形大按钮 */
         .btn-container {
@@ -49,6 +73,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            flex-grow: 1;
         }
         #accelerate-btn {
             width: 200px;
@@ -67,7 +92,6 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
-        /* 按住时的呼吸灯脉冲特效（对应剧本：The phone screen pulses faintly） */
         #app-screen.accelerating #accelerate-btn {
             background: #1a1a1a;
             border-color: #00ffcc;
@@ -92,7 +116,6 @@
             align-items: center;
             z-index: 9999;
         }
-        /* 红色的电池图标（对应剧本：THE NO BATTERY ICON APPEARS） */
         .battery-icon {
             width: 70px;
             height: 35px;
@@ -128,14 +151,17 @@
 <body>
 
     <div id="app-screen">
+        <div class="fake-status-bar">
+            <div class="fake-time" id="display-time">06:34</div> <div class="fake-icons"></div> </div>
+        
         <div class="hint-text">System Ready</div>
         <div class="btn-container">
             <div id="accelerate-btn">ACCELERATE</div>
         </div>
-        <div class="hint-text" style="font-size: 11px; color: #444;">v1.0.4-build.88</div>
+        <div class="hint-text" style="font-size: 11px; color: #444; margin-top: 0; margin-bottom: 20px;">v1.0.4-build.88</div>
     </div>
 
-    <div id="dead-screen" id="dead-screen">
+    <div id="dead-screen">
         <div class="battery-icon">
             <div class="battery-level"></div>
         </div>
@@ -145,15 +171,25 @@
         const btn = document.getElementById('accelerate-btn');
         const appScreen = document.getElementById('app-screen');
         const deadScreen = document.getElementById('dead-screen');
+        const timeDisplay = document.getElementById('display-time');
         
         let isDead = false;
         let pressTimer = null;
+        let timeInterval = null;
         
-        // 【剧组专用控场密码】如果拍戏穿帮了或者想重置，双击屏幕上方空白处即可恢复初始状态
+        // 模拟剧本中的初始时间：早晨 06:34
+        let currentHour = 6;
+        let currentMinute = 34;
+
+        function updateTimeDisplay() {
+            let h = currentHour < 10 ? '0' + currentHour : currentHour;
+            let m = currentMinute < 10 ? '0' + currentMinute : currentMinute;
+            timeDisplay.textContent = `${h}:${m}`;
+        }
+
+        // 双击屏幕上方重置
         appScreen.addEventListener('dblclick', (e) => {
-            if(e.clientY < 100) {
-                resetApp();
-            }
+            if(e.clientY < 100) resetApp();
         });
         deadScreen.addEventListener('click', () => {
             resetApp();
@@ -164,59 +200,76 @@
             deadScreen.style.display = 'none';
             appScreen.style.opacity = '1';
             appScreen.classList.remove('accelerating');
+            currentHour = 6;
+            currentMinute = 34;
+            updateTimeDisplay();
             clearTimeout(pressTimer);
+            clearInterval(timeInterval);
         }
 
-        // 核心逻辑：按住开始加速 [cite: 95]
+        // 开始加速：时间数字开始疯狂跳动！
         function startAccelerate(e) {
-            e.preventDefault(); // 阻止安卓默认的缩放和长按菜单
+            e.preventDefault();
             if (isDead) return;
             
             appScreen.classList.add('accelerating');
             
-            // 【关键剧情设定】按住达到 6 秒后，手机自动“电量耗尽”黑屏！ [cite: 16, 17]
-            // 拍高潮戏时，演员只需要死死按住，高喊台词，6秒一到手机会自动触发反转剧情。 
+            // 拍高潮戏时，时间数字每 20 毫秒就会疯狂加几分钟，在大银幕特写里视觉效果极震撼
+            timeInterval = setInterval(() => {
+                currentMinute += Math.floor(Math.random() * 5) + 2; // 随机快进
+                if (currentMinute >= 60) {
+                    currentHour += 1;
+                    currentMinute = currentMinute % 60;
+                }
+                if (currentHour >= 24) {
+                    currentHour = 0;
+                }
+                updateTimeDisplay();
+            }, 20);
+            
+            // 6秒后准时没电
             pressTimer = setTimeout(() => {
                 triggerBatteryDead();
             }, 6000); 
         }
 
-        // 松开或者手滑移开时停止加速
         function stopAccelerate() {
             if (isDead) return;
             appScreen.classList.remove('accelerating');
             clearTimeout(pressTimer);
+            clearInterval(timeInterval);
         }
 
-        // 触发没电剧情 [cite: 16, 17]
         function triggerBatteryDead() {
             isDead = true;
             appScreen.classList.remove('accelerating');
+            clearInterval(timeInterval);
             
-            // 1. 先瞬间黑屏 
+            // 强行把时间卡在剧本高潮过后的晚上（例如21:45），随后黑屏
+            currentHour = 21;
+            currentMinute = 45;
+            updateTimeDisplay();
+            
             appScreen.style.opacity = '0';
             
-            // 2. 延迟 0.5 秒后，闪烁红色的无电电池图标（符合剧本第8页：THE NO BATTERY ICON APPEARS） 
             setTimeout(() => {
                 deadScreen.style.display = 'flex';
-                
-                // 3. 电池图标闪烁 3 秒后完全陷入彻底的黑暗，任凭怎么按都没反应 
                 setTimeout(() => {
-                    deadScreen.style.innerHTML = ''; // 清空图标，彻底全黑
+                    deadScreen.innerHTML = ''; 
                     deadScreen.style.backgroundColor = '#000';
                 }, 3000);
             }, 500);
         }
 
-        // 适配安卓手机的触摸事件
         btn.addEventListener('touchstart', startAccelerate, { passive: false });
         btn.addEventListener('touchend', stopAccelerate);
         btn.addEventListener('touchcancel', stopAccelerate);
-        
-        // 兼容PC端测试
         btn.addEventListener('mousedown', startAccelerate);
         btn.addEventListener('mouseup', stopAccelerate);
         btn.addEventListener('mouseleave', stopAccelerate);
+        
+        // 初始初始化
+        updateTimeDisplay();
     </script>
 </body>
 </html>
